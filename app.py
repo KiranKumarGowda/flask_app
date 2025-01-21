@@ -264,7 +264,7 @@ def liked_posts():
         JOIN posts ON likes.post_id = posts.id
         JOIN users ON posts.user_id = users.id
         WHERE likes.user_id = %s
-        ORDER BY likes.created_at DESC
+        ORDER BY posts.created_at DESC
     """
     cursor.execute(query, (session["user_id"],))
     liked_posts = cursor.fetchall()
@@ -272,146 +272,6 @@ def liked_posts():
     connection.close()
 
     return render_template("liked_posts.html", posts=liked_posts)
-
-@app.route("/delete_post/<int:post_id>", methods=["POST"])
-def delete_post(post_id):
-    """Allow users to delete their posts."""
-    if "user_id" not in session:
-        flash("You need to log in to delete posts.", "danger")
-        return redirect(url_for("login"))
-
-    connection = get_db_connection()
-    cursor = connection.cursor()
-
-    # Check if the post belongs to the logged-in user
-    cursor.execute("SELECT user_id FROM posts WHERE id = %s", (post_id,))
-    post = cursor.fetchone()
-    if not post or post[0] != session["user_id"]:
-        cursor.close()
-        connection.close()
-        flash("You do not have permission to delete this post.", "danger")
-        return redirect(url_for("index"))
-
-    # Delete the post and associated comments and likes
-    cursor.execute("DELETE FROM likes WHERE post_id = %s", (post_id,))
-    cursor.execute("DELETE FROM comments WHERE post_id = %s", (post_id,))
-    cursor.execute("DELETE FROM posts WHERE id = %s", (post_id,))
-    connection.commit()
-
-    cursor.close()
-    connection.close()
-
-    flash("Post deleted successfully.", "success")
-    return redirect(url_for("index"))
-
-@app.route("/search_users", methods=["GET", "POST"])
-def search_users():
-    """Search for other users by username."""
-    if "user_id" not in session:
-        flash("Please log in to search for users.", "danger")
-        return redirect(url_for("login"))
-
-    users = []
-    if request.method == "POST":
-        search_query = request.form["search_query"]
-        connection = get_db_connection()
-        cursor = connection.cursor(dictionary=True)
-        cursor.execute(
-            "SELECT id, username FROM users WHERE username LIKE %s AND id != %s",
-            (f"%{search_query}%", session["user_id"])
-        )
-        users = cursor.fetchall()
-        cursor.close()
-        connection.close()
-
-    return render_template("search_users.html", users=users)
-
-@app.route("/send_friend_request/<int:receiver_id>", methods=["POST"])
-def send_friend_request(receiver_id):
-    """Send a friend request to another user."""
-    if "user_id" not in session:
-        flash("Please log in to send friend requests.", "danger")
-        return redirect(url_for("login"))
-
-    sender_id = session["user_id"]
-
-    connection = get_db_connection()
-    cursor = connection.cursor()
-
-    # Check if a friend request already exists
-    cursor.execute(
-        "SELECT id FROM friend_requests WHERE sender_id = %s AND receiver_id = %s AND status = 'pending'",
-        (sender_id, receiver_id)
-    )
-    existing_request = cursor.fetchone()
-
-    if existing_request:
-        flash("Friend request already sent.", "info")
-    else:
-        # Insert a new friend request
-        cursor.execute(
-            "INSERT INTO friend_requests (sender_id, receiver_id) VALUES (%s, %s)",
-            (sender_id, receiver_id)
-        )
-        connection.commit()
-        flash("Friend request sent!", "success")
-
-    cursor.close()
-    connection.close()
-    return redirect(url_for("search_users"))
-
-@app.route("/friend_requests")
-def friend_requests():
-    """View incoming friend requests."""
-    if "user_id" not in session:
-        flash("Please log in to view friend requests.", "danger")
-        return redirect(url_for("login"))
-
-    connection = get_db_connection()
-    cursor = connection.cursor(dictionary=True)
-    cursor.execute(
-        """
-        SELECT fr.id, u.username AS sender_username
-        FROM friend_requests fr
-        JOIN users u ON fr.sender_id = u.id
-        WHERE fr.receiver_id = %s AND fr.status = 'pending'
-        """,
-        (session["user_id"],)
-    )
-    requests = cursor.fetchall()
-    cursor.close()
-    connection.close()
-
-    return render_template("friend_requests.html", requests=requests)
-
-@app.route("/handle_friend_request/<int:request_id>/<string:action>", methods=["POST"])
-def handle_friend_request(request_id, action):
-    """Accept or reject a friend request."""
-    if "user_id" not in session:
-        flash("Please log in to manage friend requests.", "danger")
-        return redirect(url_for("login"))
-
-    connection = get_db_connection()
-    cursor = connection.cursor()
-
-    if action == "accept":
-        cursor.execute(
-            "UPDATE friend_requests SET status = 'accepted' WHERE id = %s AND receiver_id = %s",
-            (request_id, session["user_id"])
-        )
-        flash("Friend request accepted!", "success")
-    elif action == "reject":
-        cursor.execute(
-            "UPDATE friend_requests SET status = 'rejected' WHERE id = %s AND receiver_id = %s",
-            (request_id, session["user_id"])
-        )
-        flash("Friend request rejected.", "info")
-
-    connection.commit()
-    cursor.close()
-    connection.close()
-
-    return redirect(url_for("friend_requests"))
 
 @app.route("/update_profile", methods=["GET", "POST"])
 def update_profile():
@@ -442,8 +302,6 @@ def update_profile():
             flash("Profile picture updated successfully!", "success")
             return redirect(url_for("profile"))
 
+        flash("Invalid file format. Please upload a valid image.", "danger")
+    
     return render_template("update_profile.html")
-
-
-if __name__ == "__main__":
-    app.run(debug=True)
