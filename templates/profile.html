@@ -1,14 +1,24 @@
 {% extends "base.html" %}
+
 {% block title %}Profile{% endblock %}
+
 {% block content %}
 <h2>Profile</h2>
 <div class="profile">
     <p><strong>Username:</strong> {{ user.username }}</p>
+    
+    <!-- Display Bio -->
     {% if user.bio %}
         <p><strong>Bio:</strong> {{ user.bio }}</p>
+    {% else %}
+        <p><strong>Bio:</strong> No bio available</p>
     {% endif %}
+    
+    <!-- Display Profile Picture -->
     {% if user.profile_picture %}
-        <img src="{{ url_for('static', filename=user.profile_picture) }}" alt="Profile Picture">
+        <img src="{{ url_for('static', filename=user.profile_picture) }}" alt="Profile Picture" class="profile-picture">
+    {% else %}
+        <p><strong>Profile Picture:</strong> No picture available</p>
     {% endif %}
 </div>
 
@@ -31,6 +41,6 @@
     <p>You haven't created any posts yet.</p>
 {% endif %}
 
+<a href="{{ url_for('update_profile') }}">Update Profile</a> <!-- Link to Profile Update Page -->
 <a href="{{ url_for('index') }}">Back to Home</a>
 {% endblock %}
-
